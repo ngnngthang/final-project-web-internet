@@ -2,17 +2,17 @@
 
 namespace App\Policies;
 
-use App\Models\User;
+use App\Core\Auth;
 
 class EnrollmentPolicy
 {
-    public function create(User $user): bool
+    public static function create(): bool
     {
-        return in_array($user->role, ['Admin', 'Staff']);
+        return in_array(Auth::role(), ['Admin', 'Staff'], true);
     }
 
-    public function delete(User $user): bool
+    public static function delete(): bool
     {
-        return in_array($user->role, ['Admin', 'Staff']);
+        return in_array(Auth::role(), ['Admin', 'Staff'], true);
     }
 }

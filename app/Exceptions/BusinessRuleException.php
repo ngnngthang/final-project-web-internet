@@ -6,9 +6,8 @@ use Exception;
 
 /**
  * Thrown when a request is well-formed but violates a ClassHub business rule
- * (e.g. duplicate enrollment, class at capacity). Controllers should catch
- * this and translate $code into the standard error response format
- * documented in classhub_technical_specs.md.
+ * (e.g. duplicate enrollment, class at capacity). The Router catches this
+ * and returns the standard 422 error response.
  */
 class BusinessRuleException extends Exception
 {

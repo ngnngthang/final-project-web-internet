@@ -2,46 +2,65 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Core\Database;
 
-class Student extends Model
+class Student
 {
-    use HasFactory;
-
-    protected $fillable = [
-        'school_id', 'user_id', 'full_name', 'student_id', 'date_of_birth', 'email', 'phone', 'status',
-    ];
-
-    protected function casts(): array
+    public static function find(int $id): ?array
     {
-        return [
-            'date_of_birth' => 'date',
-        ];
+        $stmt = Database::connection()->prepare('SELECT * FROM students WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
     }
 
-    public function school()
+    public static function findByUserId(int $userId): ?array
     {
-        return $this->belongsTo(School::class);
+        $stmt = Database::connection()->prepare('SELECT * FROM students WHERE user_id = ?');
+        $stmt->execute([$userId]);
+        return $stmt->fetch() ?: null;
     }
 
-    public function user()
+    public static function create(array $data): int
     {
-        return $this->belongsTo(User::class);
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare(
+            'INSERT INTO students (school_id, user_id, full_name, student_id, date_of_birth, email, phone, status, created_at, updated_at)
+             VALUES (:school_id, :user_id, :full_name, :student_id, :date_of_birth, :email, :phone, :status, NOW(), NOW())'
+        );
+        $stmt->execute([
+            'school_id' => $data['school_id'],
+            'user_id' => $data['user_id'],
+            'full_name' => $data['full_name'],
+            'student_id' => $data['student_id'],
+            'date_of_birth' => $data['date_of_birth'],
+            'email' => $data['email'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'status' => $data['status'] ?? 'Active',
+        ]);
+        return (int) $pdo->lastInsertId();
     }
 
-    public function enrollments()
+    public static function bulkImport(array $rows): array
     {
-        return $this->hasMany(Enrollment::class);
-    }
+        $pdo = Database::connection();
+        $results = ['inserted' => 0, 'errors' => []];
 
-    public function scores()
-    {
-        return $this->hasMany(Score::class);
-    }
+        $pdo->beginTransaction();
+        try {
+            foreach ($rows as $i => $row) {
+                if (empty($row['full_name']) || empty($row['student_id'])) {
+                    $results['errors'][] = "Row {$i}: missing required field";
+                    continue;
+                }
+                self::create($row);
+                $results['inserted']++;
+            }
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
 
-    public function finalGrades()
-    {
-        return $this->hasMany(FinalGrade::class);
+        return $results;
     }
 }

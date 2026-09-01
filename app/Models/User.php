@@ -2,66 +2,39 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use App\Core\Database;
 
-class User extends Authenticatable
+class User
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
-
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
-    protected $fillable = [
-        'school_id',
-        'username',
-        'email',
-        'password',
-        'role',
-        'is_active',
-    ];
-
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
-
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    public static function find(int $id): ?array
     {
-        return [
-            'password' => 'hashed',
-            'is_active' => 'boolean',
-            'last_login' => 'datetime',
-        ];
+        $stmt = Database::connection()->prepare('SELECT * FROM users WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
     }
 
-    public function school()
+    public static function findByUsername(string $username): ?array
     {
-        return $this->belongsTo(School::class);
+        $stmt = Database::connection()->prepare('SELECT * FROM users WHERE username = ?');
+        $stmt->execute([$username]);
+        return $stmt->fetch() ?: null;
     }
 
-    public function teacher()
+    public static function create(array $data): int
     {
-        return $this->hasOne(Teacher::class);
-    }
-
-    public function student()
-    {
-        return $this->hasOne(Student::class);
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare(
+            'INSERT INTO users (school_id, username, email, password, role, is_active, created_at, updated_at)
+             VALUES (:school_id, :username, :email, :password, :role, :is_active, NOW(), NOW())'
+        );
+        $stmt->execute([
+            'school_id' => $data['school_id'],
+            'username' => $data['username'],
+            'email' => $data['email'] ?? null,
+            'password' => password_hash($data['password'], PASSWORD_BCRYPT),
+            'role' => $data['role'],
+            'is_active' => $data['is_active'] ?? true,
+        ]);
+        return (int) $pdo->lastInsertId();
     }
 }

@@ -2,26 +2,26 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Core\Database;
 
-class AuditLog extends Model
+class AuditLog
 {
-    public $timestamps = false;
-
-    protected $fillable = [
-        'school_id', 'user_id', 'action', 'entity_type', 'entity_id', 'changes', 'ip_address', 'created_at',
-    ];
-
-    protected function casts(): array
+    public static function create(array $data): int
     {
-        return [
-            'changes' => 'array',
-            'created_at' => 'datetime',
-        ];
-    }
-
-    public function user()
-    {
-        return $this->belongsTo(User::class);
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare(
+            'INSERT INTO audit_logs (school_id, user_id, action, entity_type, entity_id, changes, ip_address, created_at)
+             VALUES (:school_id, :user_id, :action, :entity_type, :entity_id, :changes, :ip_address, NOW())'
+        );
+        $stmt->execute([
+            'school_id' => $data['school_id'],
+            'user_id' => $data['user_id'],
+            'action' => $data['action'],
+            'entity_type' => $data['entity_type'],
+            'entity_id' => $data['entity_id'] ?? null,
+            'changes' => isset($data['changes']) ? json_encode($data['changes']) : null,
+            'ip_address' => $data['ip_address'] ?? ($_SERVER['REMOTE_ADDR'] ?? null),
+        ]);
+        return (int) $pdo->lastInsertId();
     }
 }

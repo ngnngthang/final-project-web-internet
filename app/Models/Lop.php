@@ -2,51 +2,45 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Core\Database;
 
-class Lop extends Model
+class Lop
 {
-    use HasFactory;
-
-    protected $table = 'lop';
-
-    protected $fillable = [
-        'khoi_id', 'school_id', 'teacher_id', 'name', 'max_capacity', 'current_enrollment', 'status',
-    ];
-
-    public function khoi()
+    public static function find(int $id): ?array
     {
-        return $this->belongsTo(Khoi::class, 'khoi_id');
+        $stmt = Database::connection()->prepare('SELECT * FROM lop WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
     }
 
-    public function school()
+    public static function forKhoi(int $khoiId): array
     {
-        return $this->belongsTo(School::class);
+        $stmt = Database::connection()->prepare('SELECT * FROM lop WHERE khoi_id = ? ORDER BY name');
+        $stmt->execute([$khoiId]);
+        return $stmt->fetchAll();
     }
 
-    public function teacher()
+    public static function create(array $data): int
     {
-        return $this->belongsTo(Teacher::class);
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare(
+            'INSERT INTO lop (khoi_id, school_id, teacher_id, name, max_capacity, current_enrollment, status, created_at, updated_at)
+             VALUES (:khoi_id, :school_id, :teacher_id, :name, :max_capacity, 0, :status, NOW(), NOW())'
+        );
+        $stmt->execute([
+            'khoi_id' => $data['khoi_id'],
+            'school_id' => $data['school_id'],
+            'teacher_id' => $data['teacher_id'] ?? null,
+            'name' => $data['name'],
+            'max_capacity' => $data['max_capacity'] ?? 50,
+            'status' => $data['status'] ?? 'Planning',
+        ]);
+        return (int) $pdo->lastInsertId();
     }
 
-    public function enrollments()
+    public static function incrementEnrollment(int $lopId): void
     {
-        return $this->hasMany(Enrollment::class, 'lop_id');
-    }
-
-    public function schedule()
-    {
-        return $this->hasOne(Schedule::class, 'lop_id');
-    }
-
-    public function scores()
-    {
-        return $this->hasMany(Score::class, 'lop_id');
-    }
-
-    public function finalGrades()
-    {
-        return $this->hasMany(FinalGrade::class, 'lop_id');
+        $stmt = Database::connection()->prepare('UPDATE lop SET current_enrollment = current_enrollment + 1 WHERE id = ?');
+        $stmt->execute([$lopId]);
     }
 }

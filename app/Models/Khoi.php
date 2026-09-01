@@ -2,33 +2,38 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Core\Database;
 
-class Khoi extends Model
+class Khoi
 {
-    use HasFactory;
-
-    protected $table = 'khoi';
-
-    protected $fillable = [
-        'school_id', 'name', 'academic_year', 'is_active', 'created_by',
-    ];
-
-    protected function casts(): array
+    public static function find(int $id): ?array
     {
-        return [
-            'is_active' => 'boolean',
-        ];
+        $stmt = Database::connection()->prepare('SELECT * FROM khoi WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
     }
 
-    public function school()
+    public static function forSchool(int $schoolId): array
     {
-        return $this->belongsTo(School::class);
+        $stmt = Database::connection()->prepare('SELECT * FROM khoi WHERE school_id = ? ORDER BY academic_year DESC, name');
+        $stmt->execute([$schoolId]);
+        return $stmt->fetchAll();
     }
 
-    public function lop()
+    public static function create(array $data): int
     {
-        return $this->hasMany(Lop::class);
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare(
+            'INSERT INTO khoi (school_id, name, academic_year, is_active, created_by, created_at, updated_at)
+             VALUES (:school_id, :name, :academic_year, :is_active, :created_by, NOW(), NOW())'
+        );
+        $stmt->execute([
+            'school_id' => $data['school_id'],
+            'name' => $data['name'],
+            'academic_year' => $data['academic_year'],
+            'is_active' => $data['is_active'] ?? true,
+            'created_by' => $data['created_by'],
+        ]);
+        return (int) $pdo->lastInsertId();
     }
 }

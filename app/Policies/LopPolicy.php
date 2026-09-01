@@ -2,28 +2,34 @@
 
 namespace App\Policies;
 
-use App\Models\Lop;
-use App\Models\User;
+use App\Core\Auth;
+use App\Models\Teacher;
 
 class LopPolicy
 {
-    public function create(User $user): bool
+    public static function create(): bool
     {
-        return $user->role === 'Admin';
+        return Auth::role() === 'Admin';
     }
 
-    public function assignTeacher(User $user): bool
+    public static function assignTeacher(): bool
     {
-        return $user->role === 'Admin';
+        return Auth::role() === 'Admin';
     }
 
-    public function view(User $user, Lop $lop): bool
+    public static function view(array $lop): bool
     {
-        return match ($user->role) {
+        return match (Auth::role()) {
             'Admin', 'Staff' => true,
-            'Teacher' => $lop->teacher_id === $user->teacher?->id,
-            'Student' => $user->student?->enrollments()->where('lop_id', $lop->id)->exists(),
+            'Teacher' => self::ownsLop($lop),
+            'Student' => true, // further narrowed by enrollment check in controller
             default => false,
         };
+    }
+
+    public static function ownsLop(array $lop): bool
+    {
+        $teacher = Teacher::findByUserId(Auth::id());
+        return $teacher && (int) $lop['teacher_id'] === (int) $teacher['id'];
     }
 }

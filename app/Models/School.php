@@ -2,31 +2,37 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Core\Database;
 
-class School extends Model
+class School
 {
-    use HasFactory;
-
-    protected $fillable = [
-        'name', 'email', 'phone', 'address', 'tier', 'subscription_status', 'subscription_expires_at',
-    ];
-
-    protected function casts(): array
+    public static function find(int $id): ?array
     {
-        return [
-            'subscription_expires_at' => 'datetime',
-        ];
+        $stmt = Database::connection()->prepare('SELECT * FROM schools WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
     }
 
-    public function users()
+    public static function all(): array
     {
-        return $this->hasMany(User::class);
+        return Database::connection()->query('SELECT * FROM schools ORDER BY name')->fetchAll();
     }
 
-    public function khoi()
+    public static function create(array $data): int
     {
-        return $this->hasMany(Khoi::class);
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare(
+            'INSERT INTO schools (name, email, phone, address, tier, subscription_status, created_at, updated_at)
+             VALUES (:name, :email, :phone, :address, :tier, :subscription_status, NOW(), NOW())'
+        );
+        $stmt->execute([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'phone' => $data['phone'] ?? null,
+            'address' => $data['address'] ?? null,
+            'tier' => $data['tier'] ?? 'Starter',
+            'subscription_status' => $data['subscription_status'] ?? 'trial',
+        ]);
+        return (int) $pdo->lastInsertId();
     }
 }

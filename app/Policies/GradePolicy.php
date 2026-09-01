@@ -2,37 +2,37 @@
 
 namespace App\Policies;
 
-use App\Models\FinalGrade;
-use App\Models\Lop;
-use App\Models\Score;
-use App\Models\User;
+use App\Core\Auth;
+use App\Models\Teacher;
 
 class GradePolicy
 {
-    public function enter(User $user, Lop $lop): bool
+    public static function enter(array $lop): bool
     {
-        return $user->role === 'Admin'
-            || ($user->role === 'Teacher' && $lop->teacher_id === $user->teacher?->id);
+        return Auth::role() === 'Admin' || (Auth::role() === 'Teacher' && LopPolicy::ownsLop($lop));
     }
 
-    public function publish(User $user, Lop $lop): bool
+    public static function publish(array $lop): bool
     {
-        return $this->enter($user, $lop); // same rule per permission matrix
+        return self::enter($lop); // same rule per permission matrix
     }
 
-    public function correct(User $user, Score $score): bool
+    public static function correct(array $lop): bool
     {
-        return $user->role === 'Admin'
-            || ($user->role === 'Teacher' && $score->lop->teacher_id === $user->teacher?->id);
+        return self::enter($lop);
     }
 
-    public function viewAll(User $user): bool
+    public static function viewAll(): bool
     {
-        return $user->role === 'Admin';
+        return Auth::role() === 'Admin';
     }
 
-    public function viewOwn(User $user, FinalGrade $grade): bool
+    public static function viewOwn(array $finalGrade): bool
     {
-        return $user->role === 'Student' && $grade->student_id === $user->student?->id;
+        if (Auth::role() !== 'Student') {
+            return false;
+        }
+        $student = \App\Models\Student::findByUserId(Auth::id());
+        return $student && (int) $finalGrade['student_id'] === (int) $student['id'];
     }
 }

@@ -2,43 +2,58 @@
 
 namespace App\Services;
 
+use App\Core\Database;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Enrollment;
 use App\Models\Lop;
 use App\Models\Student;
-use Illuminate\Support\Facades\DB;
 
 class EnrollmentValidationService
 {
-    public function enroll(Student $student, Lop $lop, string $academicYear): Enrollment
+    public function enroll(int $studentId, int $lopId, string $academicYear, int $createdBy): array
     {
-        if ($student->status !== 'Active') {
+        $student = Student::find($studentId);
+        if (!$student) {
+            throw new BusinessRuleException('Student not found', 'STUDENT_NOT_FOUND');
+        }
+        if ($student['status'] !== 'Active') {
             throw new BusinessRuleException('Student is not active', 'STUDENT_INACTIVE');
         }
 
-        if (Enrollment::where('student_id', $student->id)
-            ->where('academic_year', $academicYear)
-            ->where('status', 'Enrolled')
-            ->exists()) {
+        $lop = Lop::find($lopId);
+        if (!$lop) {
+            throw new BusinessRuleException('Lop not found', 'LOP_NOT_FOUND');
+        }
+
+        if (Enrollment::existsForYear($studentId, $academicYear)) {
             throw new BusinessRuleException('Student already enrolled this year', 'DUPLICATE_ENROLLMENT');
         }
 
-        if ($lop->current_enrollment >= $lop->max_capacity) {
+        if ((int) $lop['current_enrollment'] >= (int) $lop['max_capacity']) {
             throw new BusinessRuleException('Lop at capacity', 'CAPACITY_EXCEEDED');
         }
 
-        return DB::transaction(function () use ($student, $lop, $academicYear) {
-            $enrollment = Enrollment::create([
-                'student_id' => $student->id,
-                'lop_id' => $lop->id,
-                'school_id' => $lop->school_id,
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $enrollmentId = Enrollment::create([
+                'school_id' => $lop['school_id'],
+                'student_id' => $studentId,
+                'lop_id' => $lopId,
                 'academic_year' => $academicYear,
-                'created_by' => auth()->id(),
+                'created_by' => $createdBy,
             ]);
 
-            $lop->increment('current_enrollment');
+            Lop::incrementEnrollment($lopId);
 
-            return $enrollment;
-        });
+            app_audit_log('enrolled_student', 'Enrollment', $enrollmentId, $lop['school_id'], $createdBy);
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+
+        return Enrollment::find($enrollmentId);
     }
 }
